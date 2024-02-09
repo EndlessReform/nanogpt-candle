@@ -1,0 +1,16 @@
+# Ignore target and cache directories
+target/
+.cargo/
+
+# Ignore debug symbols
+*.dSYM/
+
+# Ignore temporary files created during compilation
+*.lock
+
+# Ignore logs and profiling data
+logs/
+profile/
+
+# Ignore generated documentation
+docs/_site/

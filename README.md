@@ -12,6 +12,10 @@ Install Rust if you haven't already done so. Then in root:
 
 ```bash
 cargo build
+# If on Nvidia platform
+cargo build --features cuda
+# If on Apple Silicon
+cargo build --features metal
 ```
 
 ## Usage

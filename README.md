@@ -18,4 +18,17 @@ cargo build --features cuda
 cargo build --features metal
 ```
 
+Add TinyShakespeare dataset:
+
+```bash
+mkdir corpus
+curl 'https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt' -o corpus/shakespeare.txt
+```
+
 ## Usage
+
+Train TinyShakespeare tokenizer:
+
+```bash
+cargo run --bin train_tokenizer -- -i corpus/shakespeare.txt -o models
+```

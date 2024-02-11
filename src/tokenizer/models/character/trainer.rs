@@ -62,7 +62,7 @@ impl Trainer for CharacterTrainer {
                     acc.insert(c.to_string());
                     acc
                 });
-        self.chars = char_map;
+        self.chars.extend(char_map);
         Ok(())
     }
 }

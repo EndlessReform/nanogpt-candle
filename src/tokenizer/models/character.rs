@@ -20,7 +20,7 @@ pub struct Character {
 }
 
 impl Character {
-    fn new(vocab: Vocab) -> Self {
+    pub fn new(vocab: Vocab) -> Self {
         let vocab_r: VocabR = vocab.iter().map(|(k, v)| (*v, k.clone())).collect();
         Self { vocab, vocab_r }
     }

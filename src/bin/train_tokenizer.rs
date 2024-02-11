@@ -34,7 +34,7 @@ fn main() {
     // Load contents
     let cwd = env::current_dir().unwrap();
     let input_file_path: PathBuf = [&cwd, &args.infile].iter().collect();
-    let file = File::open(&input_file_path).unwrap();
+    let file = File::open(input_file_path).unwrap();
     let reader = BufReader::new(file);
 
     // Do training
@@ -43,7 +43,7 @@ fn main() {
         .feed(reader.lines().map(|l| l.unwrap()), fake_processor)
         .unwrap();
     trainer
-        .feed(vec!["\n".to_string()].iter(), fake_processor)
+        .feed(["\n".to_string()].iter(), fake_processor)
         .unwrap();
     trainer.train(&mut model).unwrap();
 

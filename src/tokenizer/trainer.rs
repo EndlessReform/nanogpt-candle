@@ -1,8 +1,14 @@
-use std::error::Error;
+use thiserror::Error;
 
-use super::models::Model;
+use super::models::{character::trainer::CharacterTrainer, Model, ModelWrapper};
 
-pub type TrainerError = Box<dyn Error>;
+#[derive(Error, Debug)]
+pub enum TrainerError {
+    #[error(transparent)]
+    ProcessorError(#[from] Box<dyn std::error::Error>),
+    #[error("Mismatching model: {0}")]
+    InvalidModel(String),
+}
 
 pub trait Trainer {
     type Model: Model;
@@ -12,5 +18,30 @@ pub trait Trainer {
     where
         I: Iterator<Item = S>,
         S: AsRef<str>,
-        F: Fn(&str) -> Result<Vec<String>, Box<dyn Error>>;
+        F: Fn(&str) -> Result<Vec<String>, Box<dyn std::error::Error>>;
+}
+
+pub enum TrainerWrapper {
+    CharacterTrainer(CharacterTrainer),
+}
+
+impl Trainer for TrainerWrapper {
+    type Model = ModelWrapper;
+    fn feed<I, S, F>(&mut self, iterator: I, processor: F) -> Result<(), TrainerError>
+    where
+        I: Iterator<Item = S>,
+        S: AsRef<str>,
+        F: Fn(&str) -> Result<Vec<String>, Box<dyn std::error::Error>>,
+    {
+        match self {
+            Self::CharacterTrainer(c) => c.feed(iterator, processor),
+        }
+    }
+    fn train(&self, model: &mut Self::Model) -> Result<(), TrainerError> {
+        match self {
+            Self::CharacterTrainer(c) => match model {
+                ModelWrapper::Character(m) => c.train(m),
+            },
+        }
+    }
 }

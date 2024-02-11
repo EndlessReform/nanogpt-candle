@@ -44,7 +44,7 @@ impl Trainer for CharacterTrainer {
         S: AsRef<str>,
         F: Fn(&str) -> Result<Vec<String>, Box<dyn std::error::Error>>,
     {
-        let chars: Result<Vec<Vec<char>>, TrainerError> = iterator
+        let chars: Result<Vec<Vec<char>>, Box<dyn std::error::Error>> = iterator
             .map(|seq| {
                 processor(seq.as_ref()).map(|strings| {
                     strings
@@ -54,14 +54,14 @@ impl Trainer for CharacterTrainer {
                 })
             })
             .collect();
-        let char_map: HashSet<String> =
-            chars?
-                .into_iter()
-                .flatten()
-                .fold(HashSet::new(), |mut acc, c| {
-                    acc.insert(c.to_string());
-                    acc
-                });
+        let char_map: HashSet<String> = chars
+            .map_err(TrainerError::ProcessorError)?
+            .into_iter()
+            .flatten()
+            .fold(HashSet::new(), |mut acc, c| {
+                acc.insert(c.to_string());
+                acc
+            });
         self.chars.extend(char_map);
         Ok(())
     }

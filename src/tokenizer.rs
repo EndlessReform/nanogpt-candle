@@ -19,7 +19,7 @@ pub struct Encoding {
     offsets: Vec<u32>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub id: u32,
     pub value: String,

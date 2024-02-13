@@ -14,3 +14,7 @@ profile/
 
 # Ignore generated documentation
 docs/_site/
+
+# Ignore temp files
+corpus
+models

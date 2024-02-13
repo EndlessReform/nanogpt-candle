@@ -8,6 +8,8 @@ pub enum TrainerError {
     ProcessorError(#[from] Box<dyn std::error::Error>),
     #[error("Mismatching model: {0}")]
     InvalidModel(String),
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
 }
 
 pub trait Trainer {

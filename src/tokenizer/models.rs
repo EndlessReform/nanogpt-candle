@@ -1,5 +1,6 @@
 use crate::tokenizer::trainer::Trainer;
 use crate::tokenizer::Token;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -22,6 +23,7 @@ pub trait Model {
     fn get_trainer(&self) -> Self::Trainer;
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum ModelWrapper {
     Character(Character),
 }

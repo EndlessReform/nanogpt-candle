@@ -1,12 +1,8 @@
 use crate::tokenizer::{models::Model, Token, TokenizerError};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
 
 pub mod trainer;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use trainer::CharacterTrainer;
 
 pub type Vocab = HashMap<String, u32>;
@@ -82,21 +78,6 @@ impl Model for Character {
             })
             .collect()
     }
-    fn save(
-        &self,
-        folder: &std::path::Path,
-        name: Option<&str>,
-    ) -> Result<Vec<std::path::PathBuf>, std::io::Error> {
-        let fname = match name {
-            Some(n) => format!("{}-vocab.json", n),
-            None => "vocab.json".to_string(),
-        };
-        let vocab_path: PathBuf = [folder, Path::new(fname.as_str())].iter().collect();
-        let mut vocab_file = File::create(&vocab_path)?;
-        let contents: String = serde_json::to_string(&self)?;
-        vocab_file.write_all(contents.as_bytes())?;
-        Ok(vec![vocab_path])
-    }
 }
 
 #[cfg(test)]
@@ -104,6 +85,7 @@ mod tests {
     use std::{env::temp_dir, fs};
 
     use super::*;
+    use crate::tokenizer::models::ModelWrapper;
     use serde_json;
 
     #[test]
@@ -137,13 +119,14 @@ mod tests {
 
         // Persist to JSON
         let model = Character::new(vocab);
-        let dest_paths = model.save(&tmp, Some("foo")).unwrap();
+        let wrapper = ModelWrapper::Character(model);
+        let dest_paths = wrapper.save(&tmp, Some("foo")).unwrap();
         assert_eq!(dest_paths.len(), 1);
 
         // Load from JSON, verify correctness
         let bytes = fs::read(&dest_paths[0]).unwrap();
         let json_string = String::from_utf8(bytes).unwrap();
-        let model2: Character = serde_json::from_str(&json_string).unwrap();
+        let model2: ModelWrapper = serde_json::from_str(&json_string).unwrap();
         assert_eq!(model2.get_vocab_size(), 3);
     }
 }

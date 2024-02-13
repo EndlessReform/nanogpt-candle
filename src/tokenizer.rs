@@ -86,6 +86,9 @@ impl Tokenizer {
     pub fn get_vocab(&self) -> HashMap<String, u32> {
         self.model_wrapper.get_vocab()
     }
+    pub fn get_vocab_size(&self) -> usize {
+        self.model_wrapper.get_vocab_size()
+    }
     pub fn token_to_id(&self, token: &str) -> Option<u32> {
         self.model_wrapper.token_to_id(token)
     }
@@ -115,7 +118,10 @@ impl Tokenizer {
                 }
             });
             let mut trainer = self.model_wrapper.get_trainer();
-            trainer.feed(line_iter, |p| Ok(vec![p.to_string()]))?;
+            let fake_processor = |p: &str| Ok(vec![p.to_string()]);
+            trainer.feed(line_iter, fake_processor)?;
+            // Kludgy hack to get over newlines
+            trainer.feed(vec!["\n"].iter(), fake_processor)?;
             trainer.train(&mut self.model_wrapper)?;
         }
         Ok(self)

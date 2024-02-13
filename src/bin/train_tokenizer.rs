@@ -5,11 +5,13 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     path::PathBuf,
+    vec,
 };
 
 use nanogpt::tokenizer::{
-    models::{character::Character, Model},
+    models::{character::Character, ModelWrapper},
     trainer::Trainer,
+    Tokenizer,
 };
 
 #[derive(Parser, Debug)]
@@ -28,32 +30,22 @@ fn main() {
     let args = Args::parse();
 
     // Init model and trainer
-    let mut model = Character::new(HashMap::new());
-    let mut trainer = model.get_trainer();
+    let model = Character::new(HashMap::new());
+    let mut tokenizer = Tokenizer::new(ModelWrapper::Character(model));
 
     // Load contents
     let cwd = env::current_dir().unwrap();
     let input_file_path: PathBuf = [&cwd, &args.infile].iter().collect();
-    let file = File::open(input_file_path).unwrap();
-    let reader = BufReader::new(file);
 
-    // Do training
-    let fake_processor = |s: &str| Ok(vec![s.to_string()]);
-    trainer
-        .feed(reader.lines().map(|l| l.unwrap()), fake_processor)
-        .unwrap();
-    trainer
-        .feed(["\n".to_string()].iter(), fake_processor)
-        .unwrap();
-    trainer.train(&mut model).unwrap();
+    tokenizer.train_from_files(vec![input_file_path]).unwrap();
 
     // Persist
     let out_dir: PathBuf = [&cwd, &args.outdir].iter().collect();
-    let out_paths = model.save(&out_dir, None).unwrap();
+    let out_paths = tokenizer.save(&out_dir, None).unwrap();
 
     println!(
         "Tokenizer saved to {:?}, vocab size: {}",
         out_paths,
-        model.get_vocab_size()
+        tokenizer.get_vocab_size()
     );
 }

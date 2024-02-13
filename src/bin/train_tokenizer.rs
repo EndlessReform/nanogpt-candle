@@ -10,7 +10,6 @@ use std::{
 
 use nanogpt::tokenizer::{
     models::{character::Character, ModelWrapper},
-    trainer::Trainer,
     Tokenizer,
 };
 
@@ -41,7 +40,9 @@ fn main() {
 
     // Persist
     let out_dir: PathBuf = [&cwd, &args.outdir].iter().collect();
-    let out_paths = tokenizer.save(&out_dir, None).unwrap();
+    let out_paths = tokenizer
+        .save(&out_dir, Some("shakespeare-tokenizer".into()))
+        .unwrap();
 
     println!(
         "Tokenizer saved to {:?}, vocab size: {}",

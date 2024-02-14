@@ -72,7 +72,7 @@ impl Model for ModelWrapper {
 impl ModelWrapper {
     pub fn save(&self, folder: &Path, name: Option<&str>) -> Result<Vec<PathBuf>, io::Error> {
         let fname = match name {
-            Some(n) => format!("{}-vocab.json", n),
+            Some(n) => format!("{}.json", n),
             None => "vocab.json".to_string(),
         };
         let vocab_path: PathBuf = [folder, Path::new(fname.as_str())].iter().collect();

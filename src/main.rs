@@ -1,12 +1,25 @@
 use candle_core::{Device, Tensor};
+use nanogpt::config::Config;
 use nanogpt::tokenizer::Tokenizer;
 use std::env;
+use std::path::PathBuf;
 
 fn main() {
-    let mut path = env::current_dir().unwrap();
-    path.push("models");
-    path.push("vocab.json");
-    let tokenizer = Tokenizer::from_file(&path).unwrap();
+    // Load config
+    let cwd = env::current_dir().unwrap();
+    let config_path: PathBuf = [cwd.clone(), "config".into(), "model-config.json".into()]
+        .iter()
+        .collect();
+    let config = Config::from_json_file(&config_path).unwrap();
+
+    let tokenizer_path: PathBuf = [
+        cwd.clone(),
+        "models".into(),
+        format!("{}-tokenizer.json", config.tokenizer_id).into(),
+    ]
+    .iter()
+    .collect();
+    let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
     println!("Vocab: {:?}", tokenizer.get_vocab_size());
 
     // Example encode

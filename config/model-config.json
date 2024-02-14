@@ -1,0 +1,9 @@
+{
+    "context_size": 8,
+    "hidden_size": 256,
+    "intermediate_size": 1024,
+    "num_attention_heads": 8,
+    "num_key_value_heads": 8,
+    "hidden_layers": 16,
+    "tokenizer_id": "shakespeare-base"
+}

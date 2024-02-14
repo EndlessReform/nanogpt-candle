@@ -1,12 +1,5 @@
 use clap::Parser;
-use std::{
-    collections::HashMap,
-    env,
-    fs::File,
-    io::{BufRead, BufReader},
-    path::PathBuf,
-    vec,
-};
+use std::{collections::HashMap, env, path::PathBuf, vec};
 
 use nanogpt::tokenizer::{
     models::{character::Character, ModelWrapper},

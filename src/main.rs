@@ -1,5 +1,6 @@
 use candle_core::{Device, Tensor};
 use nanogpt::config::Config;
+use nanogpt::datasets::TextDataset;
 use nanogpt::tokenizer::Tokenizer;
 use std::env;
 use std::path::PathBuf;
@@ -21,6 +22,12 @@ fn main() {
     .collect();
     let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
     println!("Vocab: {:?}", tokenizer.get_vocab_size());
+
+    let dataset_path: PathBuf = [cwd.clone(), "corpus".into(), "shakespeare.txt".into()]
+        .iter()
+        .collect();
+    let base_dataset = TextDataset::new(&[dataset_path], |s| tokenizer.encode(s)).unwrap();
+    let (train_dataset, test_dataset) = base_dataset.train_test_split(0.2).unwrap();
 
     // Example encode
     let device = Device::Cpu;

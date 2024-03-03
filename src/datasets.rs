@@ -17,7 +17,7 @@ pub enum DatasetError {
 
 #[derive(Debug, Clone)]
 pub struct TextDataset {
-    token_ids: Vec<u32>,
+    pub token_ids: Vec<u32>,
 }
 
 impl TextDataset {
@@ -37,8 +37,10 @@ impl TextDataset {
         })
     }
 
-    pub fn get_window(&self, start: usize, window_size: usize) -> Vec<u32> {
-        self.token_ids[start..start + window_size].to_vec()
+    pub fn get_window(&self, start: usize, window_size: usize) -> Option<Vec<u32>> {
+        self.token_ids
+            .get(start..start + window_size)
+            .map(|slice| slice.to_vec())
     }
 
     pub fn train_test_split(
@@ -62,5 +64,9 @@ impl TextDataset {
                 token_ids: self.token_ids[start_idx..self.token_ids.len()].to_vec(),
             },
         ))
+    }
+
+    pub fn len(&self) -> usize {
+        self.token_ids.len()
     }
 }

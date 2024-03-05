@@ -16,7 +16,7 @@ pub struct TextDatasetIterator<'a> {
     /// Position in the vec of indices
     current_pos: usize,
     shuffled_indices: Vec<usize>,
-    context_len: usize,
+    pub context_len: usize,
     device: &'a Device,
 }
 
@@ -122,7 +122,7 @@ mod tests {
         assert_eq!(y.shape().dims(), [8]);
         println!("{:?}", x);
 
-        // There are 7 batches
+        // There are 7 batches left
         let rest: Vec<Result<(Tensor, Tensor), Error>> = iterator.collect();
         for t in rest.iter() {
             println!("{:?}", t)

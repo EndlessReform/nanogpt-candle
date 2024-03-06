@@ -25,7 +25,7 @@ fn training_loop(
     device: &Device,
 ) -> Result<()> {
     // TERRIBLE do not do this
-    let vocab_size = 63;
+    let vocab_size = 65;
     let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
 
     let mut varmap = VarMap::new();
@@ -38,12 +38,11 @@ fn training_loop(
 
     for _epoch in 0..args.epochs {
         if let Some(Ok((xs, ys))) = train_batcher.next() {
-            let logprobs = model.forward(&xs)?;
-            println!(
-                "Forward pass complete. Logprobs shape: {:?}",
-                logprobs.shape()
-            );
-            let loss = loss::nll(&logprobs, &ys.flatten_all()?)?;
+            let logits = model.forward(&xs)?;
+            // Get rid of init dimension
+            let (b, t, c) = logits.dims3()?;
+            let logits = logits.reshape((b * t, c))?;
+            let loss = loss::cross_entropy(&logits, &ys.flatten(0, 1)?)?;
             println!("Loss: {:?}", loss);
         }
     }

@@ -2,6 +2,7 @@ use candle_core::{Device, Module, Result, Tensor};
 use candle_datasets::Batcher;
 use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
 use nanogpt::config::pretrained_config::PretrainedConfig;
+use nanogpt::config::training_config::TrainingConfig;
 use nanogpt::dataloader::TextDatasetIterator;
 use nanogpt::datasets::TextDataset;
 use nanogpt::models::bigram;
@@ -9,19 +10,9 @@ use nanogpt::tokenizer::Tokenizer;
 use std::env;
 use std::path::PathBuf;
 
-struct TrainingArgs {
-    learning_rate: f64,
-    epochs: usize,
-    batch_size: usize,
-    /// Safetensors filename to load weights from. Will be passed through to hf_hub
-    load_from: Option<String>,
-    /// Safetensors filename to save weights to.
-    save_to: Option<String>,
-}
-
 fn training_loop(
     train_iter: TextDatasetIterator,
-    args: &TrainingArgs,
+    args: &TrainingConfig,
     device: &Device,
 ) -> Result<()> {
     // TERRIBLE do not do this
@@ -102,17 +93,6 @@ fn main() {
 
     if let Ok(train_iter) = train_iter {
         // TODO: stop hard-coding this
-        training_loop(
-            train_iter,
-            &TrainingArgs {
-                learning_rate: 0.001,
-                epochs: 1,
-                load_from: None,
-                save_to: None,
-                batch_size: 32,
-            },
-            &device,
-        )
-        .unwrap();
+        training_loop(train_iter, &TrainingConfig::bigram_default(), &device).unwrap();
     }
 }

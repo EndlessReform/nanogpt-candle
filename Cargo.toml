@@ -5,6 +5,7 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+anyhow = "1.0.80"
 candle-core = "0.4.1"
 candle-datasets = "0.4.1"
 candle-nn = "0.4.1"

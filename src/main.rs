@@ -1,6 +1,6 @@
-use candle_core::{Device, Module, Result};
+use candle_core::{Device, Module, Result, Tensor};
 use candle_datasets::Batcher;
-use candle_nn::{loss, VarBuilder, VarMap};
+use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
 use nanogpt::config::Config;
 use nanogpt::dataloader::TextDatasetIterator;
 use nanogpt::datasets::TextDataset;
@@ -29,22 +29,31 @@ fn training_loop(
     let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
 
     let mut varmap = VarMap::new();
-    let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F16, device);
+    let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, device);
     let model = bigram::Bigram::new(vs, &bigram::Config { vocab_size })?;
 
     if let Some(load_from) = &args.load_from {
         varmap.load(load_from)?;
     }
 
-    for _epoch in 0..args.epochs {
-        if let Some(Ok((xs, ys))) = train_batcher.next() {
+    let adamw_params = candle_nn::ParamsAdamW {
+        lr: args.learning_rate,
+        ..Default::default()
+    };
+    let mut opt = candle_nn::AdamW::new(varmap.all_vars(), adamw_params)?;
+
+    for epoch in 0..args.epochs {
+        // TODO: Remove arbitrary step limit; just here for bigram
+        let mut loss = Tensor::zeros(4, candle_core::DType::F32, device)?;
+        while let Some(Ok((xs, ys))) = train_batcher.next() {
             let logits = model.forward(&xs)?;
             // Get rid of init dimension
             let (b, t, c) = logits.dims3()?;
             let logits = logits.reshape((b * t, c))?;
-            let loss = loss::cross_entropy(&logits, &ys.flatten(0, 1)?)?;
-            println!("Loss: {:?}", loss);
+            loss = loss::cross_entropy(&logits, &ys.flatten(0, 1)?)?;
+            opt.backward_step(&loss)?;
         }
+        println!("Loss at epoch {}: {:?}", epoch, loss);
     }
     // Sample one
     Ok(())
@@ -96,11 +105,11 @@ fn main() {
         training_loop(
             train_iter,
             &TrainingArgs {
-                learning_rate: 0.0,
+                learning_rate: 0.001,
                 epochs: 1,
                 load_from: None,
                 save_to: None,
-                batch_size: 1,
+                batch_size: 32,
             },
             &device,
         )

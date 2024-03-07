@@ -27,9 +27,12 @@ impl Bigram {
         let mut preds = idx.clone();
         for _ in 0..max_new_tokens {
             let logits = self.forward(idx)?;
-            // Get last time step
+            // Get logprobs for last time step
             let logits = logits.i((.., logits.dim(1)? - 1, ..))?;
             let logprobs = ops::softmax_last_dim(&logits)?;
+
+            // Forced to do this because Candle doesn't have `torch.multinomial` built in.
+            // May need to PR this in myself eventually.
             let prs: Vec<Vec<f32>> = logprobs.to_dtype(candle_core::DType::F32)?.to_vec2()?;
             let next_tokens: Result<Vec<u32>> = prs
                 .iter()
@@ -42,6 +45,7 @@ impl Bigram {
             let next_tokens = next_tokens?;
             let b = &next_tokens.len();
             let next_tokens_tensor = Tensor::new(next_tokens, idx.device())?.reshape(&[*b, 1])?;
+
             preds = Tensor::cat(&[preds, next_tokens_tensor], 1)?;
         }
         // TODO: Delete!

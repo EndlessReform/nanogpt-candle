@@ -137,9 +137,9 @@ impl Tokenizer {
     pub fn from_file(path: &PathBuf) -> Result<Self, TokenizerError> {
         let bytes = fs::read(path).map_err(TokenizerError::IoError)?;
         let json_string = String::from_utf8(bytes)
-            .map_err(|_| TokenizerError::InvalidInput("Cannot parse file".into()))?;
+            .map_err(|_| TokenizerError::InvalidInput("Cannot read file".into()))?;
         let model = serde_json::from_str::<ModelWrapper>(&json_string)
-            .map_err(|_| TokenizerError::InvalidInput("Fuck my life".into()))?;
+            .map_err(|_| TokenizerError::InvalidInput("File cannot be parsed".into()))?;
         Ok(Self {
             model_wrapper: model,
         })

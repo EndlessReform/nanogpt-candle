@@ -3,3 +3,4 @@ pub mod dataloader;
 pub mod datasets;
 pub mod models;
 pub mod tokenizer;
+pub mod util;

@@ -1,118 +1,92 @@
-use candle_core::{Device, Module, Result, Tensor};
-use candle_datasets::Batcher;
-use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
-use nanogpt::config::Config;
-use nanogpt::dataloader::TextDatasetIterator;
-use nanogpt::datasets::TextDataset;
-use nanogpt::models::bigram;
+use candle_core::{Device, Error, Result, Tensor};
+use candle_nn::{VarBuilder, VarMap};
+use clap::Parser;
+use nanogpt::config::pretrained_config::PretrainedConfig;
+use nanogpt::models::bigram::{self, Bigram};
 use nanogpt::tokenizer::Tokenizer;
 use std::env;
 use std::path::PathBuf;
 
-struct TrainingArgs {
-    learning_rate: f64,
-    epochs: usize,
-    batch_size: usize,
-    /// Safetensors filename to load weights from. Will be passed through to hf_hub
-    load_from: Option<String>,
-    /// Safetensors filename to save weights to.
-    save_to: Option<String>,
+#[derive(Parser, Debug)]
+#[command(version, long_about=None)]
+struct Args {
+    /// Name of folder in model directory.
+    #[clap(short, long = "model-id", default_value = "bigram")]
+    model_id: String,
+
+    #[arg(short, long)]
+    prompt: Option<String>,
+
+    #[arg(short, long)]
+    n_tokens: Option<usize>,
 }
 
-fn training_loop(
-    train_iter: TextDatasetIterator,
-    args: &TrainingArgs,
+fn generate(
+    tokenizer: &Tokenizer,
+    model: &mut Bigram,
+    prompt: &str,
     device: &Device,
-) -> Result<()> {
-    // TERRIBLE do not do this
-    let vocab_size = 65;
-    let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
+    max_tokens: usize,
+) -> Result<String> {
+    let input_encoding = tokenizer
+        .encode(&prompt)
+        .map_err(|_| Error::Msg("Tokenizer error".into()))?;
+    let idx_1d = Tensor::new(input_encoding.ids, &device)?;
+    let idx = idx_1d.reshape((1, idx_1d.dims1()?))?;
+    println!("Tokenized");
+    let data = model.generate(&idx, max_tokens)?;
+    println!("Generated");
+    let (b, c) = data.dims2()?;
+    let data_1d = data.reshape(b * c)?;
 
-    let mut varmap = VarMap::new();
-    let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, device);
-    let model = bigram::Bigram::new(vs, &bigram::Config { vocab_size })?;
-
-    if let Some(load_from) = &args.load_from {
-        varmap.load(load_from)?;
-    }
-
-    let adamw_params = candle_nn::ParamsAdamW {
-        lr: args.learning_rate,
-        ..Default::default()
-    };
-    let mut opt = candle_nn::AdamW::new(varmap.all_vars(), adamw_params)?;
-
-    for epoch in 0..args.epochs {
-        // TODO: Remove arbitrary step limit; just here for bigram
-        let mut loss = Tensor::zeros(4, candle_core::DType::F32, device)?;
-        while let Some(Ok((xs, ys))) = train_batcher.next() {
-            let logits = model.forward(&xs)?;
-            // Get rid of init dimension
-            let (b, t, c) = logits.dims3()?;
-            let logits = logits.reshape((b * t, c))?;
-            loss = loss::cross_entropy(&logits, &ys.flatten(0, 1)?)?;
-            opt.backward_step(&loss)?;
-        }
-        println!("Loss at epoch {}: {:?}", epoch, loss);
-    }
-    // Sample one
-    Ok(())
+    Ok(tokenizer
+        .decode(&data_1d.to_vec1()?)
+        .map_err(|_| Error::Msg("Could not decode".into()))?)
 }
 
 fn main() {
-    // Load config
+    let args = Args::parse();
+
+    // Load config. Assume models are in ./models for now
     let cwd = env::current_dir().unwrap();
-    let config_path: PathBuf = [cwd.clone(), "config".into(), "model-config.json".into()]
-        .iter()
-        .collect();
-    let config = Config::from_json_file(&config_path).unwrap();
+    let config_path: PathBuf = cwd.join(format!("models/{}/config.json", args.model_id));
+    let config = PretrainedConfig::from_json_file(&config_path).unwrap();
 
-    let tokenizer_path: PathBuf = [
-        cwd.clone(),
-        "models".into(),
-        format!("{}-tokenizer.json", config.tokenizer_id).into(),
-    ]
-    .iter()
-    .collect();
+    // Assume tokenizers are at top level for now
+    let tokenizer_path: PathBuf =
+        cwd.join(format!("models/{}-tokenizer.json", config.tokenizer_id));
     let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
-    println!("Vocab: {:?}", tokenizer.get_vocab_size());
+    println!("Loaded tokenizer; vocab: {:?}", tokenizer.get_vocab_size());
 
-    let dataset_path: PathBuf = [cwd.clone(), "corpus".into(), "shakespeare.txt".into()]
-        .iter()
-        .collect();
-    let base_dataset = TextDataset::new(&[dataset_path], |s| tokenizer.encode(s)).unwrap();
-    let (train_dataset, _test_dataset) = base_dataset.train_test_split(0.2).unwrap();
+    let device = nanogpt::util::get_device();
 
-    let device: Device;
-    #[cfg(feature = "cuda")]
-    {
-        device = Device::new_cuda(0).unwrap();
+    // TODO: Factor this out once we make this multi-model
+    let mut varmap = VarMap::new();
+    let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, &device);
+    let mut model = bigram::Bigram::new(
+        vs,
+        &bigram::Config {
+            vocab_size: tokenizer.get_vocab_size(),
+        },
+    )
+    .unwrap();
+
+    // Get weights if exist, else bail
+    let weight_path = cwd.join(format!(
+        "models/{}/{}.safetensors",
+        args.model_id, args.model_id
+    ));
+    if weight_path.exists() {
+        println!("Loading {} model", args.model_id);
+        varmap.load(weight_path).unwrap();
+    } else {
+        println!("Fail!");
     }
 
-    #[cfg(feature = "metal")]
-    {
-        device = Device::new_metal(0).unwrap();
-    }
-    #[cfg(not(any(feature = "cuda", feature = "metal")))]
-    {
-        device = Device::Cpu;
-    }
-    let train_iter =
-        TextDatasetIterator::new(&train_dataset, config.context_size as usize, &device);
-
-    if let Ok(train_iter) = train_iter {
-        // TODO: stop hard-coding this
-        training_loop(
-            train_iter,
-            &TrainingArgs {
-                learning_rate: 0.001,
-                epochs: 1,
-                load_from: None,
-                save_to: None,
-                batch_size: 32,
-            },
-            &device,
-        )
-        .unwrap();
-    }
+    let prompt = args.prompt.unwrap_or_else(|| " ".to_string());
+    let max_tokens = args.n_tokens.unwrap_or_else(|| 100);
+    println!(
+        "{:?}",
+        generate(&tokenizer, &mut model, &prompt, &device, max_tokens)
+    )
 }

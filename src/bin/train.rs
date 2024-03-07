@@ -88,20 +88,7 @@ fn main() {
     let base_dataset = TextDataset::new(&[dataset_path], |s| tokenizer.encode(s)).unwrap();
     let (train_dataset, _test_dataset) = base_dataset.train_test_split(0.2).unwrap();
 
-    let device: Device;
-    #[cfg(feature = "cuda")]
-    {
-        device = Device::new_cuda(0).unwrap();
-    }
-
-    #[cfg(feature = "metal")]
-    {
-        device = Device::new_metal(0).unwrap();
-    }
-    #[cfg(not(any(feature = "cuda", feature = "metal")))]
-    {
-        device = Device::Cpu;
-    }
+    let device = nanogpt::util::get_device();
     let train_iter =
         TextDatasetIterator::new(&train_dataset, config.context_size as usize, &device);
 

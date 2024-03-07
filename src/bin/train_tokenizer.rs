@@ -1,5 +1,3 @@
-pub mod train;
-
 use clap::Parser;
 use std::{collections::HashMap, env, path::PathBuf, vec};
 

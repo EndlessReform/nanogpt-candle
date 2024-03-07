@@ -8,20 +8,24 @@ use nanogpt::datasets::TextDataset;
 use nanogpt::models::bigram;
 use nanogpt::tokenizer::Tokenizer;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn training_loop(
     train_iter: TextDatasetIterator,
+    tokenizer: &Tokenizer,
     args: &TrainingConfig,
     device: &Device,
 ) -> Result<()> {
-    // TERRIBLE do not do this
-    let vocab_size = 65;
     let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
 
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, device);
-    let model = bigram::Bigram::new(vs, &bigram::Config { vocab_size })?;
+    let model = bigram::Bigram::new(
+        vs,
+        &bigram::Config {
+            vocab_size: tokenizer.get_vocab_size(),
+        },
+    )?;
 
     if let Some(load_from) = &args.load_from {
         varmap.load(load_from)?;
@@ -46,7 +50,23 @@ fn training_loop(
         }
         println!("Loss at epoch {}: {:?}", epoch, loss);
     }
-    // Sample one
+
+    // Serialize to safetensors
+    if let Some(save_to) = &args.save_to {
+        // Check if path exists
+        let path = Path::new(save_to);
+        let weight_dir = path.parent().ok_or(candle_core::error::Error::Msg(
+            "Path has no parent directory".into(),
+        ))?;
+        if weight_dir.exists() {
+            varmap.save(path)?;
+        } else {
+            return Err(candle_core::error::Error::Msg(format!(
+                "Parent dir {:?} is invalid",
+                path
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -92,7 +112,13 @@ fn main() {
         TextDatasetIterator::new(&train_dataset, config.context_size as usize, &device);
 
     if let Ok(train_iter) = train_iter {
-        // TODO: stop hard-coding this
-        training_loop(train_iter, &TrainingConfig::bigram_default(), &device).unwrap();
+        // TODO: load config from file
+        training_loop(
+            train_iter,
+            &tokenizer,
+            &TrainingConfig::bigram_default(),
+            &device,
+        )
+        .unwrap();
     }
 }

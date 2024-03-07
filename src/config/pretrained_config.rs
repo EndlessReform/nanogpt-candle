@@ -16,6 +16,7 @@ pub enum ConfigError {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct PretrainedConfig {
+    pub architecture: String,
     pub context_size: u32,
     /// Hidden dimension of model
     pub hidden_size: u32,
@@ -50,6 +51,7 @@ mod tests {
         let out_path: PathBuf = env::temp_dir().join("config-test.json");
         // Gosh, what a huge model!
         let sample_config = super::PretrainedConfig {
+            architecture: "GPT-69".into(),
             context_size: 1,
             hidden_size: 1,
             intermediate_size: 1,

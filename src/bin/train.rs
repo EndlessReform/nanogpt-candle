@@ -73,18 +73,12 @@ fn training_loop(
 fn main() {
     // Load config
     let cwd = env::current_dir().unwrap();
-    let config_path: PathBuf = [cwd.clone(), "config".into(), "model-config.json".into()]
-        .iter()
-        .collect();
+    // Hardcode to bigram for now
+    let config_path: PathBuf = cwd.join("models/bigram/config.json");
     let config = PretrainedConfig::from_json_file(&config_path).unwrap();
 
-    let tokenizer_path: PathBuf = [
-        cwd.clone(),
-        "models".into(),
-        format!("{}-tokenizer.json", config.tokenizer_id).into(),
-    ]
-    .iter()
-    .collect();
+    let tokenizer_path: PathBuf =
+        cwd.join(format!("models/{}-tokenizer.json", config.tokenizer_id));
     let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
     println!("Vocab: {:?}", tokenizer.get_vocab_size());
 

@@ -1,4 +1,4 @@
-use candle_core::{Error, IndexOp, Result, Tensor};
+use candle_core::{shape::Dim, Error, IndexOp, Result, Tensor};
 use candle_nn::{embedding, ops, Embedding, Module, VarBuilder};
 use rand::{distributions::Distribution, thread_rng};
 use serde::Deserialize;
@@ -26,10 +26,11 @@ impl Bigram {
     pub fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor> {
         let mut preds = idx.clone();
         for _ in 0..max_new_tokens {
-            let logits = self.forward(idx)?;
+            let logits = self.forward(&preds)?;
             // Get logprobs for last time step
             let logits = logits.i((.., logits.dim(1)? - 1, ..))?;
-            let logprobs = ops::softmax_last_dim(&logits)?;
+            //let logprobs = ops::softmax_last_dim(&logits)?;
+            let logprobs = ops::softmax(&logits, 1)?;
 
             // Forced to do this because Candle doesn't have `torch.multinomial` built in.
             // May need to PR this in myself eventually.
@@ -45,7 +46,6 @@ impl Bigram {
             let next_tokens = next_tokens?;
             let b = &next_tokens.len();
             let next_tokens_tensor = Tensor::new(next_tokens, idx.device())?.reshape(&[*b, 1])?;
-
             preds = Tensor::cat(&[preds, next_tokens_tensor], 1)?;
         }
         // TODO: Delete!

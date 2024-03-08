@@ -6,6 +6,7 @@ use nanogpt::models::bigram::{self, Bigram};
 use nanogpt::tokenizer::Tokenizer;
 use std::env;
 use std::path::PathBuf;
+use std::process;
 
 #[derive(Parser, Debug)]
 #[command(version, long_about=None)]
@@ -47,16 +48,41 @@ fn generate(
 fn main() {
     let args = Args::parse();
 
-    // Load config. Assume models are in ./models for now
     let cwd = env::current_dir().unwrap();
-    let config_path: PathBuf = cwd.join(format!("models/{}/config.json", args.model_id));
-    let config = PretrainedConfig::from_json_file(&config_path).unwrap();
+    // Hardcode to bigram for now
+    let config_path: PathBuf = cwd.join("models/bigram/config.json");
+    if !config_path.exists() {
+        eprintln!(
+            "Error: config file not found at expected path: {:?}",
+            config_path
+        );
+        process::exit(1);
+    }
+    let config: PretrainedConfig = match PretrainedConfig::from_json_file(&config_path) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load config from {:?}: {}", config_path, e);
+            process::exit(1);
+        }
+    };
 
-    // Assume tokenizers are at top level for now
     let tokenizer_path: PathBuf =
         cwd.join(format!("models/{}-tokenizer.json", config.tokenizer_id));
-    let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
-    println!("Loaded tokenizer; vocab: {:?}", tokenizer.get_vocab_size());
+
+    if !tokenizer_path.exists() {
+        eprintln!(
+            "Error: Tokenizer not found at expected path: {:?}",
+            tokenizer_path
+        );
+        process::exit(1);
+    }
+    let tokenizer: Tokenizer = match Tokenizer::from_file(&tokenizer_path) {
+        Ok(tokenizer) => tokenizer,
+        Err(e) => {
+            eprintln!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e);
+            process::exit(1);
+        }
+    };
 
     let device = nanogpt::util::get_device();
 
@@ -72,10 +98,7 @@ fn main() {
     .unwrap();
 
     // Get weights if exist, else bail
-    let weight_path = cwd.join(format!(
-        "models/{}/{}.safetensors",
-        args.model_id, args.model_id
-    ));
+    let weight_path = cwd.join(format!("models/{}/model.safetensors", args.model_id));
     if weight_path.exists() {
         println!("Loading {} model", args.model_id);
         varmap.load(weight_path).unwrap();
@@ -84,7 +107,7 @@ fn main() {
     }
 
     let prompt = args.prompt.unwrap_or_else(|| " ".to_string());
-    let max_tokens = args.n_tokens.unwrap_or_else(|| 100);
+    let max_tokens = args.n_tokens.unwrap_or_else(|| 20);
     println!(
         "{:?}",
         generate(&tokenizer, &mut model, &prompt, &device, max_tokens)

@@ -73,6 +73,10 @@ impl<'a> TextDatasetIterator<'a> {
             current_pos: 0,
         })
     }
+
+    pub fn restart(&mut self) {
+        self.current_pos = 0;
+    }
 }
 
 // pub fn to_batcher(

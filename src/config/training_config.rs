@@ -19,10 +19,10 @@ impl TrainingConfig {
     pub fn bigram_default() -> Self {
         Self {
             learning_rate: 1e-3,
-            epochs: 1,
+            epochs: 3,
             batch_size: 32,
             load_from: None,
-            save_to: Some("models/bigram.safetensors".into()),
+            save_to: Some("models/bigram/model.safetensors".into()),
         }
     }
 

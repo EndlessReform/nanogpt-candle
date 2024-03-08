@@ -1,4 +1,4 @@
-use candle_core::{Device, Module, Result, Tensor};
+use candle_core::{DType, Device, Module, Result, Tensor};
 use candle_datasets::Batcher;
 use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
 use nanogpt::config::pretrained_config::PretrainedConfig;
@@ -7,17 +7,16 @@ use nanogpt::dataloader::TextDatasetIterator;
 use nanogpt::datasets::TextDataset;
 use nanogpt::models::bigram;
 use nanogpt::tokenizer::Tokenizer;
-use std::env;
 use std::path::{Path, PathBuf};
+use std::{env, process};
 
 fn training_loop(
-    train_iter: TextDatasetIterator,
+    dataset: &TextDataset,
     tokenizer: &Tokenizer,
     args: &TrainingConfig,
+    model_config: &PretrainedConfig,
     device: &Device,
 ) -> Result<()> {
-    let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
-
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, device);
     let model = bigram::Bigram::new(
@@ -38,6 +37,11 @@ fn training_loop(
     let mut opt = candle_nn::AdamW::new(varmap.all_vars(), adamw_params)?;
 
     for epoch in 0..args.epochs {
+        // Recreating here because we must
+        let train_iter =
+            TextDatasetIterator::new(&dataset, model_config.context_size as usize, &device)
+                .map_err(|e| candle_core::Error::Msg(format!("{:?}", e)))?;
+        let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
         // TODO: Remove arbitrary step limit; just here for bigram
         let mut loss = Tensor::zeros(4, candle_core::DType::F32, device)?;
         while let Some(Ok((xs, ys))) = train_batcher.next() {
@@ -50,7 +54,6 @@ fn training_loop(
         }
         println!("Loss at epoch {}: {:?}", epoch, loss);
     }
-
     // Serialize to safetensors
     if let Some(save_to) = &args.save_to {
         // Check if path exists
@@ -75,11 +78,38 @@ fn main() {
     let cwd = env::current_dir().unwrap();
     // Hardcode to bigram for now
     let config_path: PathBuf = cwd.join("models/bigram/config.json");
-    let config = PretrainedConfig::from_json_file(&config_path).unwrap();
+    if !config_path.exists() {
+        eprintln!(
+            "Error: config file not found at expected path: {:?}",
+            config_path
+        );
+        process::exit(1);
+    }
+    let config: PretrainedConfig = match PretrainedConfig::from_json_file(&config_path) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load config from {:?}: {}", config_path, e);
+            process::exit(1);
+        }
+    };
 
     let tokenizer_path: PathBuf =
         cwd.join(format!("models/{}-tokenizer.json", config.tokenizer_id));
-    let tokenizer = Tokenizer::from_file(&tokenizer_path).unwrap();
+
+    if !tokenizer_path.exists() {
+        eprintln!(
+            "Error: Tokenizer not found at expected path: {:?}",
+            tokenizer_path
+        );
+        process::exit(1);
+    }
+    let tokenizer: Tokenizer = match Tokenizer::from_file(&tokenizer_path) {
+        Ok(tokenizer) => tokenizer,
+        Err(e) => {
+            eprintln!("Failed to load tokenizer from {:?}: {}", tokenizer_path, e);
+            process::exit(1);
+        }
+    };
     println!("Vocab: {:?}", tokenizer.get_vocab_size());
 
     let dataset_path: PathBuf = [cwd.clone(), "corpus".into(), "shakespeare.txt".into()]
@@ -89,17 +119,14 @@ fn main() {
     let (train_dataset, _test_dataset) = base_dataset.train_test_split(0.2).unwrap();
 
     let device = nanogpt::util::get_device();
-    let train_iter =
-        TextDatasetIterator::new(&train_dataset, config.context_size as usize, &device);
 
-    if let Ok(train_iter) = train_iter {
-        // TODO: load config from file
-        training_loop(
-            train_iter,
-            &tokenizer,
-            &TrainingConfig::bigram_default(),
-            &device,
-        )
-        .unwrap();
-    }
+    // TODO: load config from file
+    training_loop(
+        &train_dataset,
+        &tokenizer,
+        &TrainingConfig::bigram_default(),
+        &config,
+        &device,
+    )
+    .unwrap();
 }

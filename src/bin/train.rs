@@ -1,4 +1,4 @@
-use candle_core::{DType, Device, Module, Result, Tensor};
+use candle_core::{Device, Module, Result, Tensor};
 use candle_datasets::Batcher;
 use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
 use nanogpt::config::pretrained_config::PretrainedConfig;
@@ -39,7 +39,7 @@ fn training_loop(
     for epoch in 0..args.epochs {
         // Recreating here because we must
         let train_iter =
-            TextDatasetIterator::new(&dataset, model_config.context_size as usize, &device)
+            TextDatasetIterator::new(dataset, model_config.context_size as usize, device)
                 .map_err(|e| candle_core::Error::Msg(format!("{:?}", e)))?;
         let mut train_batcher = Batcher::new_r2(train_iter).batch_size(args.batch_size);
         // TODO: Remove arbitrary step limit; just here for bigram

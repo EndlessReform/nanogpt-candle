@@ -30,9 +30,9 @@ fn generate(
     max_tokens: usize,
 ) -> Result<String> {
     let input_encoding = tokenizer
-        .encode(&prompt)
+        .encode(prompt)
         .map_err(|_| Error::Msg("Tokenizer error".into()))?;
-    let idx_1d = Tensor::new(input_encoding.ids, &device)?;
+    let idx_1d = Tensor::new(input_encoding.ids, device)?;
     let idx = idx_1d.reshape((1, idx_1d.dims1()?))?;
     println!("Tokenized");
     let data = model.generate(&idx, max_tokens)?;
@@ -107,7 +107,7 @@ fn main() {
     }
 
     let prompt = args.prompt.unwrap_or_else(|| " ".to_string());
-    let max_tokens = args.n_tokens.unwrap_or_else(|| 20);
+    let max_tokens = args.n_tokens.unwrap_or(20);
     println!(
         "{:?}",
         generate(&tokenizer, &mut model, &prompt, &device, max_tokens)

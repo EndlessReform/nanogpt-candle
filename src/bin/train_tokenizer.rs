@@ -34,7 +34,7 @@ fn main() {
     // Persist
     let out_dir: PathBuf = [&cwd, &args.outdir].iter().collect();
     let out_paths = tokenizer
-        .save(&out_dir, Some("shakespeare-tokenizer".into()))
+        .save(&out_dir, Some("shakespeare-tokenizer"))
         .unwrap();
 
     println!(

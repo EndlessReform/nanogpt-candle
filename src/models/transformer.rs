@@ -1,29 +1,72 @@
 use candle_core::{Error, IndexOp, Result, Tensor};
-use candle_nn::{embedding, ops, Embedding, Module, VarBuilder};
+use candle_nn::{embedding, linear, ops, Embedding, Linear, Module, VarBuilder};
 use rand::{distributions::Distribution, thread_rng};
 use serde::Deserialize;
+
+use super::Model;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     /// Number of n-grams
     pub vocab_size: usize,
+    pub hidden_dim: usize,
 }
 
 #[derive(Debug, Clone)]
-pub struct Bigram {
-    token_embedding_table: Embedding,
+pub struct Transformer {
+    wte: Embedding,
+    lm_head: Linear,
     rng: rand::rngs::ThreadRng,
 }
 
-impl Bigram {
+impl Transformer {
     pub fn new(vs: VarBuilder, cfg: &Config) -> Result<Self> {
         Ok(Self {
-            token_embedding_table: embedding(cfg.vocab_size, cfg.vocab_size, vs.pp("wte"))?,
+            wte: embedding(cfg.vocab_size, cfg.hidden_dim, vs.pp("wte"))?,
+            lm_head: linear(cfg.hidden_dim, cfg.vocab_size, vs.pp("lm_head"))?,
+            rng: thread_rng(),
+        })
+    }
+}
+
+impl Module for Transformer {
+    /// Returns logprobs
+    fn forward(&self, xs: &candle_core::Tensor) -> Result<Tensor> {
+        // Remove this eventually. Here for reference
+        // println!("Input tensor dims: {:?}", tensor.shape());
+        // println!("Input values: {:?}", tensor.to_string());
+        // println!(
+        //     "Embeddings: {:?}",
+        //     self.token_embedding_table.embeddings().to_string()
+        // );
+        //let logits = self.token_embedding_table.forward(&xs.flatten_all()?)?;
+        let tok_emb = self.wte.forward(&xs)?;
+        let logits = self.lm_head.forward(&tok_emb)?;
+        Ok(logits)
+    }
+}
+
+impl Model for Transformer {
+    fn from_config(
+        vs: VarBuilder,
+        cfg: &crate::config::pretrained_config::PretrainedConfig,
+    ) -> Result<Self> {
+        Ok(Self {
+            wte: embedding(
+                cfg.vocab_size as usize,
+                cfg.hidden_size as usize,
+                vs.pp("wte"),
+            )?,
+            lm_head: linear(
+                cfg.hidden_size as usize,
+                cfg.vocab_size as usize,
+                vs.pp("lm_head"),
+            )?,
             rng: thread_rng(),
         })
     }
 
-    pub fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor> {
+    fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor> {
         let mut preds = idx.clone();
         for _ in 0..max_new_tokens {
             let logits = self.forward(&preds)?;
@@ -53,29 +96,13 @@ impl Bigram {
     }
 }
 
-impl Module for Bigram {
-    /// Returns logprobs
-    fn forward(&self, xs: &candle_core::Tensor) -> Result<Tensor> {
-        // Remove this eventually. Here for reference
-        // println!("Input tensor dims: {:?}", tensor.shape());
-        // println!("Input values: {:?}", tensor.to_string());
-        // println!(
-        //     "Embeddings: {:?}",
-        //     self.token_embedding_table.embeddings().to_string()
-        // );
-        //let logits = self.token_embedding_table.forward(&xs.flatten_all()?)?;
-        let logits = self.token_embedding_table.forward(&xs)?;
-        //let log_sm = ops::log_softmax(&logits, D::Minus1)?;
-        Ok(logits)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use candle_core::{DType, Device, Tensor};
     use candle_nn::{VarBuilder, VarMap};
 
-    use super::{Bigram, Config};
+    use super::Model;
+    use super::{Config, Transformer};
 
     #[test]
     fn test_generate() {
@@ -84,7 +111,14 @@ mod tests {
 
         let varmap = VarMap::new();
         let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F16, &device);
-        let mut model = Bigram::new(vs, &Config { vocab_size: 4 }).unwrap();
+        let mut model = Transformer::new(
+            vs,
+            &Config {
+                vocab_size: 4,
+                hidden_dim: 32,
+            },
+        )
+        .unwrap();
 
         // Generate complete gibberish
         let preds = model.generate(&start_idx, 100).unwrap();

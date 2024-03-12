@@ -19,6 +19,7 @@ pub struct PretrainedConfig {
     pub architecture: String,
     pub context_size: u32,
     /// Hidden dimension of model
+    pub vocab_size: u32,
     pub hidden_size: u32,
     /// MLP hidden dimension. Recommend 4 * hidden_size
     pub intermediate_size: u32,
@@ -54,6 +55,7 @@ mod tests {
             architecture: "GPT-69".into(),
             context_size: 1,
             hidden_size: 1,
+            vocab_size: 1,
             intermediate_size: 1,
             num_attention_heads: 1,
             num_key_value_heads: 1,

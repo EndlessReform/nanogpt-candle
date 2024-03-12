@@ -1,3 +1,4 @@
+use super::Model;
 use candle_core::{Error, IndexOp, Result, Tensor};
 use candle_nn::{embedding, ops, Embedding, Module, VarBuilder};
 use rand::{distributions::Distribution, thread_rng};
@@ -22,8 +23,41 @@ impl Bigram {
             rng: thread_rng(),
         })
     }
+}
 
-    pub fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor> {
+impl Module for Bigram {
+    /// Returns logprobs
+    fn forward(&self, xs: &candle_core::Tensor) -> Result<Tensor> {
+        // Remove this eventually. Here for reference
+        // println!("Input tensor dims: {:?}", tensor.shape());
+        // println!("Input values: {:?}", tensor.to_string());
+        // println!(
+        //     "Embeddings: {:?}",
+        //     self.token_embedding_table.embeddings().to_string()
+        // );
+        //let logits = self.token_embedding_table.forward(&xs.flatten_all()?)?;
+        let logits = self.token_embedding_table.forward(&xs)?;
+        //let log_sm = ops::log_softmax(&logits, D::Minus1)?;
+        Ok(logits)
+    }
+}
+
+impl Model for Bigram {
+    fn from_config(
+        vs: VarBuilder,
+        cfg: &crate::config::pretrained_config::PretrainedConfig,
+    ) -> Result<Self> {
+        Ok(Self {
+            token_embedding_table: embedding(
+                cfg.vocab_size as usize,
+                cfg.vocab_size as usize,
+                vs.pp("wte"),
+            )?,
+            rng: thread_rng(),
+        })
+    }
+
+    fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor> {
         let mut preds = idx.clone();
         for _ in 0..max_new_tokens {
             let logits = self.forward(&preds)?;
@@ -53,29 +87,13 @@ impl Bigram {
     }
 }
 
-impl Module for Bigram {
-    /// Returns logprobs
-    fn forward(&self, xs: &candle_core::Tensor) -> Result<Tensor> {
-        // Remove this eventually. Here for reference
-        // println!("Input tensor dims: {:?}", tensor.shape());
-        // println!("Input values: {:?}", tensor.to_string());
-        // println!(
-        //     "Embeddings: {:?}",
-        //     self.token_embedding_table.embeddings().to_string()
-        // );
-        //let logits = self.token_embedding_table.forward(&xs.flatten_all()?)?;
-        let logits = self.token_embedding_table.forward(&xs)?;
-        //let log_sm = ops::log_softmax(&logits, D::Minus1)?;
-        Ok(logits)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use candle_core::{DType, Device, Tensor};
     use candle_nn::{VarBuilder, VarMap};
 
     use super::{Bigram, Config};
+    use crate::models::Model;
 
     #[test]
     fn test_generate() {

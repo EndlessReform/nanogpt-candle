@@ -2,13 +2,13 @@ use self::{bigram::Bigram, transformer::Transformer};
 
 use super::config::pretrained_config::PretrainedConfig;
 use candle_core::{Result, Tensor};
-use candle_nn::VarBuilder;
+use candle_nn::{Module, VarBuilder};
 use clap::ValueEnum;
 
 pub mod bigram;
 pub mod transformer;
 
-pub trait Model: Sized {
+pub trait Model: Sized + Module {
     fn generate(&mut self, idx: &Tensor, max_new_tokens: usize) -> Result<Tensor>;
     fn from_config(vs: VarBuilder, cfg: &PretrainedConfig) -> Result<Self>;
 }
@@ -16,6 +16,15 @@ pub trait Model: Sized {
 pub enum ModelWrapper {
     Bigram(bigram::Bigram),
     Transformer(transformer::Transformer),
+}
+
+impl Module for ModelWrapper {
+    fn forward(&self, xs: &Tensor) -> Result<Tensor> {
+        match self {
+            Self::Bigram(b) => b.forward(xs),
+            Self::Transformer(t) => t.forward(xs),
+        }
+    }
 }
 
 impl Model for ModelWrapper {

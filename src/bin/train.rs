@@ -1,30 +1,34 @@
-use candle_core::{Device, Module, Result, Tensor};
+use candle_core::{Device, Result, Tensor};
 use candle_datasets::Batcher;
 use candle_nn::{loss, Optimizer, VarBuilder, VarMap};
+use clap::Parser;
 use nanogpt::config::pretrained_config::PretrainedConfig;
 use nanogpt::config::training_config::TrainingConfig;
 use nanogpt::dataloader::TextDatasetIterator;
 use nanogpt::datasets::TextDataset;
-use nanogpt::models::bigram;
+use nanogpt::models::bigram::Bigram;
+use nanogpt::models::transformer::Transformer;
+use nanogpt::models::{Model, WhichModel};
 use nanogpt::tokenizer::Tokenizer;
 use std::path::{Path, PathBuf};
 use std::{env, process};
 
-fn training_loop(
+#[derive(Parser, Debug)]
+#[command(version, long_about=None)]
+struct Args {
+    #[arg(short, long, default_value = "transformer")]
+    model_type: WhichModel,
+}
+
+fn training_loop<M: Model>(
     dataset: &TextDataset,
-    tokenizer: &Tokenizer,
     args: &TrainingConfig,
     model_config: &PretrainedConfig,
     device: &Device,
 ) -> Result<()> {
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, candle_core::DType::F32, device);
-    let model = bigram::Bigram::new(
-        vs,
-        &bigram::Config {
-            vocab_size: tokenizer.get_vocab_size(),
-        },
-    )?;
+    let model: M = M::from_config(vs, &model_config)?;
 
     if let Some(load_from) = &args.load_from {
         varmap.load(load_from)?;
@@ -74,10 +78,15 @@ fn training_loop(
 }
 
 fn main() {
+    let args = Args::parse();
     // Load config
     let cwd = env::current_dir().unwrap();
     // Hardcode to bigram for now
-    let config_path: PathBuf = cwd.join("models/bigram/config.json");
+    let config_path: PathBuf = match args.model_type {
+        WhichModel::Bigram => cwd.join("models/bigram/config.json"),
+        WhichModel::Transformer => cwd.join("models/transformer/config.json"),
+    };
+
     if !config_path.exists() {
         eprintln!(
             "Error: config file not found at expected path: {:?}",
@@ -121,12 +130,24 @@ fn main() {
     let device = nanogpt::util::get_device();
 
     // TODO: load config from file
-    training_loop(
-        &train_dataset,
-        &tokenizer,
-        &TrainingConfig::bigram_default(),
-        &config,
-        &device,
-    )
-    .unwrap();
+    match args.model_type {
+        WhichModel::Bigram => {
+            training_loop::<Bigram>(
+                &train_dataset,
+                &TrainingConfig::bigram_default(),
+                &config,
+                &device,
+            )
+            .unwrap();
+        }
+        WhichModel::Transformer => {
+            training_loop::<Transformer>(
+                &train_dataset,
+                &TrainingConfig::transformer_default(),
+                &config,
+                &device,
+            )
+            .unwrap();
+        }
+    }
 }

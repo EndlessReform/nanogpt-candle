@@ -26,6 +26,16 @@ impl TrainingConfig {
         }
     }
 
+    pub fn transformer_default() -> Self {
+        Self {
+            learning_rate: 1e-3,
+            epochs: 2,
+            batch_size: 32,
+            load_from: None,
+            save_to: Some("models/transformer/model.safetensors".into()),
+        }
+    }
+
     pub fn from_json_file(path: &PathBuf) -> Result<Self> {
         let contents = fs::read_to_string(path)?;
         let config = serde_json::from_str(&contents)?;

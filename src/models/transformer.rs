@@ -10,11 +10,14 @@ pub struct Config {
     /// Number of n-grams
     pub vocab_size: usize,
     pub hidden_dim: usize,
+    pub context_length: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct Transformer {
     wte: Embedding,
+    /// Learned positional embedding. TODO: Move to RoPE!
+    wpe: Embedding,
     lm_head: Linear,
     rng: rand::rngs::ThreadRng,
 }
@@ -23,6 +26,7 @@ impl Transformer {
     pub fn new(vs: VarBuilder, cfg: &Config) -> Result<Self> {
         Ok(Self {
             wte: embedding(cfg.vocab_size, cfg.hidden_dim, vs.pp("wte"))?,
+            wpe: embedding(cfg.context_length, cfg.hidden_dim, vs.pp("wpe"))?,
             lm_head: linear(cfg.hidden_dim, cfg.vocab_size, vs.pp("lm_head"))?,
             rng: thread_rng(),
         })
@@ -32,6 +36,8 @@ impl Transformer {
 impl Module for Transformer {
     /// Returns logprobs
     fn forward(&self, xs: &candle_core::Tensor) -> Result<Tensor> {
+        #[allow(non_snake_case)]
+        let (_B, T) = xs.dims2()?;
         // Remove this eventually. Here for reference
         // println!("Input tensor dims: {:?}", tensor.shape());
         // println!("Input values: {:?}", tensor.to_string());
@@ -41,7 +47,11 @@ impl Module for Transformer {
         // );
         //let logits = self.token_embedding_table.forward(&xs.flatten_all()?)?;
         let tok_emb = self.wte.forward(&xs)?;
-        let logits = self.lm_head.forward(&tok_emb)?;
+        let pos_emb = self
+            .wpe
+            .forward(&Tensor::arange(0, T as u32, &xs.device())?)?;
+        let x = tok_emb.broadcast_add(&pos_emb)?;
+        let logits = self.lm_head.forward(&x)?;
         Ok(logits)
     }
 }
@@ -56,6 +66,11 @@ impl Model for Transformer {
                 cfg.vocab_size as usize,
                 cfg.hidden_size as usize,
                 vs.pp("wte"),
+            )?,
+            wpe: embedding(
+                cfg.context_size as usize,
+                cfg.hidden_size as usize,
+                vs.pp("wpe"),
             )?,
             lm_head: linear(
                 cfg.hidden_size as usize,
@@ -116,6 +131,7 @@ mod tests {
             &Config {
                 vocab_size: 4,
                 hidden_dim: 32,
+                context_length: 128,
             },
         )
         .unwrap();

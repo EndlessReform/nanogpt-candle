@@ -32,3 +32,33 @@ Train TinyShakespeare tokenizer:
 ```bash
 cargo run --bin train_tokenizer -- -i corpus/shakespeare.txt -o models
 ```
+
+### Training
+
+Create model config for the parameters you want. Then put it in `models/$MODEL_NAME/config.json`:
+
+```json
+{
+    "architecture": "transformer",
+    "context_size": 8,
+    "hidden_size": 32,
+    "intermediate_size": 1024,
+    "num_attention_heads": 8,
+    "num_key_value_heads": 8,
+    "hidden_layers": 16,
+    "vocab_size": 65,
+    "tokenizer_id": "shakespeare-base"
+}
+```
+
+Train transformer model (hard-coded to TinyShakespeare for now):
+
+```bash
+cargo run --release --bin train -F cuda -- --model-type transformer
+```
+
+Should be output to `model.safetensors`.
+
+TODO: 
+- Allow setting training config from file
+- Changing model name
